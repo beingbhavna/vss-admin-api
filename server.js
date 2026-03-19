@@ -8,6 +8,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 const nodemailer = require("nodemailer");
+const jwt = require('jsonwebtoken');
 
 /* DB CONNECT */
 mongoose.connect(process.env.MONGO_URI)
@@ -26,15 +27,40 @@ const Lead = mongoose.model("Lead", {
 });
 
 
+
+function authMiddleware(req, res, next) {
+
+  const token = req.headers['authorization'];
+
+  if (!token) {
+    return res.status(403).json({ message: "No token" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid token" });
+  }
+}
+
+
 app.post('/api/login', (req, res) => {
 
     const { email, password } = req.body;
 
     // dummy login (test ke liye)
     if (email === "test@gmail.com" && password === "1234567890") {
+        // 🔥 TOKEN GENERATE
+        const token = jwt.sign(
+            { email: email, role: "admin" }, // payload
+            process.env.JWT_SECRET,          // secret key
+            { expiresIn: "1d" }              // expiry
+        );
         return res.json({
             success: true,
-            token: "dummy-token",
+            token: token,
             user: { email }
         });
     }
@@ -89,8 +115,6 @@ app.get("/api/bookings", async (req, res) => {
     const data = await Booking.find();
     res.json(data);
 });
-
-
 const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -100,9 +124,7 @@ const transporter = nodemailer.createTransport({
 });
 
 app.post('/api/contact', (req, res) => {
-
     const { name, email, message } = req.body;
-
     transporter.sendMail({
         from: email,
         to: process.env.EMAIL,
@@ -113,10 +135,15 @@ app.post('/api/contact', (req, res) => {
             console.log(err);
             return res.json({ success: false });
         }
-
         res.json({ success: true });
     });
+});
 
+app.get('/api/dashboard', authMiddleware, (req, res) => {
+    res.json({
+        message: "Welcome to dashboard",
+        user: req.user
+    });
 });
 
 app.listen(5000, () => console.log("Server running"));
