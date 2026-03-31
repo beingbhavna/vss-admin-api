@@ -146,4 +146,15 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
     });
 });
 
+app.post('/api/calls', async (req, res) => {
+  const call = new Call(req.body);
+  await call.save();
+  res.json(call);
+});
+
+app.get('/api/stats', async (req, res) => {
+  const total = await Lead.countDocuments();
+  const contacted = await Lead.countDocuments({ status: 'Contacted' });
+  res.json({ total, contacted });
+});
 app.listen(5000, () => console.log("Server running"));
